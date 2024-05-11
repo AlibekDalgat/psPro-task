@@ -17,11 +17,12 @@ func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api")
 	{
-		api.POST("/", h.createCommand)
-		api.GET("/", h.listCommands)
+		api.POST("", h.createCommand)
+		api.GET("", h.listCommands)
 		api.GET("/comm", h.oneCommand)
-		api.PATCH("/stop", h.stopCommand)
-		api.PATCH("/start", h.startCommand)
-		api.DELETE("/kill", h.killCommand)
+		api.PATCH("/stop/:id", h.stopCommand)
+		api.PATCH("/start/:id", h.startCommand)
+		api.DELETE("/kill/:id", h.killCommand)
 	}
+	return router
 }

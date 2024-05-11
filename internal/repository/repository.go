@@ -7,7 +7,10 @@ import (
 
 type Command interface {
 	CreateCommand(command models.Command) (int, error)
-	WriteToColumn(string, int, interface{}) error
+	AddRecordToColumn(string, int, string) error
+	RewriteColumn(string, int, interface{}) error
+	GetAllCommands() ([]models.Command, error)
+	GetOneCommand(int) (models.Command, error)
 }
 
 type Repository struct {

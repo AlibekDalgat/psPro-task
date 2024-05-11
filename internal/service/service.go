@@ -11,6 +11,8 @@ type Command interface {
 	StopCommand(int) error
 	StartCommand(int) error
 	KillCommand(int) error
+	GetAllCommands() ([]models.Command, error)
+	GetOneCommand(int) (models.Command, error)
 }
 
 type Service struct {

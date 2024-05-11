@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"syscall"
 	"time"
 )
+
+const writeInterval = 3
 
 type CommandService struct {
 	repo        repository.Command
@@ -22,6 +25,10 @@ func NewCommandService(repo *repository.Repository) *CommandService {
 
 func (s *CommandService) CreateCommand(command models.Command) (int, error) {
 	command.CreatedAt = time.Now()
+	command.ExecutedAT = nil
+	command.Stdout = nil
+	command.Stderr = nil
+
 	id, err := s.repo.CreateCommand(command)
 	if err != nil {
 		return 0, err
@@ -54,25 +61,9 @@ func (s *CommandService) ExecuteCommand(id int, script string) {
 		(*s.currentJobs)[id] = job
 	}
 
-	go func() {
-		for stdoutScanner.Scan() {
-			line := stdoutScanner.Text()
-			err = s.repo.WriteToColumn("stdout", id, line)
-			if err != nil {
-				logrus.Printf("Запись в stdout команды %d не получилась: '%s'\n", id, err.Error())
-			}
-		}
-	}()
+	go s.scanStdStream("stdout", stdoutScanner, id)
+	go s.scanStdStream("stderr", stderrScanner, id)
 
-	go func() {
-		for stderrScanner.Scan() {
-			line := stderrScanner.Text()
-			err = s.repo.WriteToColumn("stdout", id, line)
-			if err != nil {
-				logrus.Printf("Запись в stderr команды %d не получилась: '%s'\n", id, err.Error())
-			}
-		}
-	}()
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
@@ -80,8 +71,8 @@ func (s *CommandService) ExecuteCommand(id int, script string) {
 
 	select {
 	case <-done:
-		logrus.Println("process finished successfully")
-		err = s.repo.WriteToColumn("executed_at", id, time.Now())
+		logrus.Printf("Команда %d завершена\n", id)
+		err = s.repo.RewriteColumn("executed_at", id, time.Now())
 		if err != nil {
 			logrus.Printf("Запись в executed_at не получилась: '%s'\n", err.Error())
 		}
@@ -116,6 +107,48 @@ func (s *CommandService) ExecuteCommand(id int, script string) {
 	}
 }
 
+func (s *CommandService) scanStdStream(stream string, scanner *bufio.Scanner, id int) {
+	ticker := time.NewTicker(writeInterval * time.Second)
+	defer ticker.Stop()
+
+	var buffer bytes.Buffer
+
+	for {
+		isScanFinished := false
+		var line string
+		if scanner.Scan() {
+			line = scanner.Text()
+			buffer.WriteString(line)
+			buffer.WriteString("\n")
+		} else {
+			isScanFinished = true
+			if err := scanner.Err(); err != nil {
+				logrus.Errorf("Ошибка при сканировании: %s", err)
+			}
+		}
+
+		select {
+		case <-ticker.C:
+			if len(line) > 0 {
+				err := s.repo.RewriteColumn(stream, id, buffer.String())
+				if err != nil {
+					logrus.Printf("запись в %s команды %d не получилась: '%s'\n", stream, id, err.Error())
+				}
+			}
+		default:
+			if isScanFinished {
+				if len(line) > 0 {
+					err := s.repo.RewriteColumn(stream, id, buffer.String())
+					if err != nil {
+						logrus.Printf("запись в %s команды %d не получилась: '%s'\n", stream, id, err.Error())
+					}
+				}
+				return
+			}
+		}
+	}
+}
+
 func (s *CommandService) StopCommand(id int) error {
 	job, ok := (*s.currentJobs)[id]
 	if !ok {
@@ -146,9 +179,17 @@ func (s *CommandService) KillCommand(id int) error {
 		return fmt.Errorf("Команды с id %v не найдено", id)
 	}
 	job.ActionChan <- "kill"
-	err := s.repo.WriteToColumn("executed_at", id, time.Now())
+	err := s.repo.RewriteColumn("executed_at", id, time.Now())
 	if err != nil {
 		logrus.Printf("Запись в executed_at команды %d не получилась: '%s'\n", id, err.Error())
 	}
 	return nil
+}
+
+func (s *CommandService) GetAllCommands() ([]models.Command, error) {
+	return s.repo.GetAllCommands()
+}
+
+func (s *CommandService) GetOneCommand(id int) (models.Command, error) {
+	return s.repo.GetOneCommand(id)
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"psPro-task/internal/models"
+	"strconv"
 )
 
 func (h *Handler) createCommand(c *gin.Context) {
@@ -22,4 +23,73 @@ func (h *Handler) createCommand(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"id": id,
 	})
+}
+
+func (h *Handler) listCommands(c *gin.Context) {
+	commands, err := h.services.GetAllCommands()
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, commands)
+}
+
+func (h *Handler) oneCommand(c *gin.Context) {
+	idStr := c.Query("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, "Неверный парамметр id")
+		return
+	}
+	command, err := h.services.GetOneCommand(id)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, command)
+}
+
+func (h *Handler) stopCommand(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, "Неверный парамметр id")
+		return
+	}
+	err = h.services.StopCommand(id)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, statusResponse{Status: "ok"})
+}
+
+func (h *Handler) startCommand(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, "Неверный парамметр id")
+		return
+	}
+	err = h.services.StartCommand(id)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, statusResponse{Status: "ok"})
+}
+
+func (h *Handler) killCommand(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, "Неверный парамметр id")
+		return
+	}
+	err = h.services.KillCommand(id)
+	if err != nil {
+		newErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, statusResponse{Status: "ok"})
 }
