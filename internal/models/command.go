@@ -1,6 +1,7 @@
 package models
 
 import (
+	"bytes"
 	"time"
 )
 
@@ -14,6 +15,8 @@ type Command struct {
 }
 
 type Job struct {
-	ActionChan chan string
-	IsRun      bool
+	ActionChan   chan string
+	IsRun        bool
+	StdOutBuffer *bytes.Buffer
+	StdErrBuffer *bytes.Buffer
 }

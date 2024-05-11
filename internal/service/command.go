@@ -58,94 +58,66 @@ func (s *CommandService) ExecuteCommand(id int, script string) {
 	} else {
 		job := (*s.currentJobs)[id]
 		job.IsRun = true
+		job.StdOutBuffer = new(bytes.Buffer)
+		job.StdErrBuffer = new(bytes.Buffer)
 		(*s.currentJobs)[id] = job
 	}
 
-	go s.scanStdStream("stdout", stdoutScanner, id)
-	go s.scanStdStream("stderr", stderrScanner, id)
+	go s.scanStdStream(stdoutScanner, (*s.currentJobs)[id].StdOutBuffer)
+	go s.scanStdStream(stderrScanner, (*s.currentJobs)[id].StdErrBuffer)
 
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
 	}()
 
-	select {
-	case <-done:
-		logrus.Printf("Команда %d завершена\n", id)
-		err = s.repo.RewriteColumn("executed_at", id, time.Now())
-		if err != nil {
-			logrus.Printf("Запись в executed_at не получилась: '%s'\n", err.Error())
-		}
-		delete(*s.currentJobs, id)
-	case action := <-(*s.currentJobs)[id].ActionChan:
-		switch action {
-		case "stop":
-			err = cmd.Process.Signal(syscall.SIGSTOP)
+	for {
+		select {
+		case <-done:
+			logrus.Printf("Команда %d завершена\n", id)
+			outbuf := (*s.currentJobs)[id].StdOutBuffer.String()
+			errbuf := (*s.currentJobs)[id].StdErrBuffer.String()
+			err = s.repo.WriteResults(id, &outbuf, &errbuf, time.Now())
 			if err != nil {
-				logrus.Printf("Не получилось отправить сигнал остановки команде с id %d: '%s'\n", id, err.Error())
-			}
-			logrus.Printf("Команда %d остановлена", id)
-			job := (*s.currentJobs)[id]
-			job.IsRun = false
-			(*s.currentJobs)[id] = job
-		case "start":
-			err = cmd.Process.Signal(syscall.SIGCONT)
-			if err != nil {
-				logrus.Printf("Не получилось отправить сигнал старта команде с id %d: '%s'\n", id, err.Error())
-			}
-			logrus.Printf("Команда %d продолжена", id)
-			job := (*s.currentJobs)[id]
-			job.IsRun = true
-			(*s.currentJobs)[id] = job
-		case "kill":
-			if err = cmd.Process.Kill(); err != nil {
-				logrus.Errorf("ошибка завершения команды %d: %s", id, err.Error())
+				logrus.Printf("Запись результатов выполнения команды %d не получилось: '%s'\n", id, err.Error())
 			}
 			delete(*s.currentJobs, id)
-			logrus.Printf("Команда %d принудительна завершена", id)
+			break
+		case action := <-(*s.currentJobs)[id].ActionChan:
+			switch action {
+			case "stop":
+				err = cmd.Process.Signal(syscall.SIGSTOP)
+				if err != nil {
+					logrus.Printf("Не получилось отправить сигнал остановки команде с id %d: '%s'\n", id, err.Error())
+				}
+				logrus.Printf("Команда %d остановлена", id)
+				job := (*s.currentJobs)[id]
+				job.IsRun = false
+				(*s.currentJobs)[id] = job
+			case "start":
+				err = cmd.Process.Signal(syscall.SIGCONT)
+				if err != nil {
+					logrus.Printf("Не получилось отправить сигнал старта команде с id %d: '%s'\n", id, err.Error())
+				}
+				logrus.Printf("Команда %d продолжена", id)
+				job := (*s.currentJobs)[id]
+				job.IsRun = true
+				(*s.currentJobs)[id] = job
+			case "kill":
+				if err = cmd.Process.Kill(); err != nil {
+					logrus.Errorf("ошибка завершения команды %d: %s", id, err.Error())
+				}
+				logrus.Printf("Команда %d принудительна завершена", id)
+				break
+			}
 		}
 	}
 }
 
-func (s *CommandService) scanStdStream(stream string, scanner *bufio.Scanner, id int) {
-	ticker := time.NewTicker(writeInterval * time.Second)
-	defer ticker.Stop()
-
-	var buffer bytes.Buffer
-
-	for {
-		isScanFinished := false
-		var line string
-		if scanner.Scan() {
-			line = scanner.Text()
-			buffer.WriteString(line)
-			buffer.WriteString("\n")
-		} else {
-			isScanFinished = true
-			if err := scanner.Err(); err != nil {
-				logrus.Errorf("Ошибка при сканировании: %s", err)
-			}
-		}
-
-		select {
-		case <-ticker.C:
-			if len(line) > 0 {
-				err := s.repo.RewriteColumn(stream, id, buffer.String())
-				if err != nil {
-					logrus.Printf("запись в %s команды %d не получилась: '%s'\n", stream, id, err.Error())
-				}
-			}
-		default:
-			if isScanFinished {
-				if len(line) > 0 {
-					err := s.repo.RewriteColumn(stream, id, buffer.String())
-					if err != nil {
-						logrus.Printf("запись в %s команды %d не получилась: '%s'\n", stream, id, err.Error())
-					}
-				}
-				return
-			}
-		}
+func (s *CommandService) scanStdStream(scanner *bufio.Scanner, buffer *bytes.Buffer) {
+	for scanner.Scan() {
+		buffer.WriteString(scanner.Text())
+		buffer.WriteString("\n")
 	}
 }
 
@@ -179,10 +151,6 @@ func (s *CommandService) KillCommand(id int) error {
 		return fmt.Errorf("Команды с id %v не найдено", id)
 	}
 	job.ActionChan <- "kill"
-	err := s.repo.RewriteColumn("executed_at", id, time.Now())
-	if err != nil {
-		logrus.Printf("Запись в executed_at команды %d не получилась: '%s'\n", id, err.Error())
-	}
 	return nil
 }
 
@@ -191,5 +159,15 @@ func (s *CommandService) GetAllCommands() ([]models.Command, error) {
 }
 
 func (s *CommandService) GetOneCommand(id int) (models.Command, error) {
-	return s.repo.GetOneCommand(id)
+	command, err := s.repo.GetOneCommand(id)
+	if err != nil {
+		return models.Command{}, err
+	}
+	if job, ok := (*s.currentJobs)[id]; ok {
+		command.Stdout = new(string)
+		*command.Stdout = job.StdOutBuffer.String()
+		command.Stderr = new(string)
+		*command.Stderr = job.StdErrBuffer.String()
+	}
+	return command, nil
 }

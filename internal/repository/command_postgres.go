@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"psPro-task/internal/models"
+	"time"
 )
 
 type CommandPostgres struct {
@@ -24,18 +25,15 @@ func (p *CommandPostgres) CreateCommand(command models.Command) (int, error) {
 	return id, nil
 }
 
-func (p *CommandPostgres) AddRecordToColumn(column string, id int, data string) error {
-	query := fmt.Sprintf("UPDATE %s SET %s = $1 WHERE id = $2", commandsTable, column)
-	_, err := p.db.Exec(query, data, id)
-	if err != nil {
-		return err
+func (p *CommandPostgres) WriteResults(id int, stdout, stderr *string, executedAt time.Time) error {
+	if *stdout == "" {
+		stdout = nil
 	}
-	return nil
-}
-
-func (p *CommandPostgres) RewriteColumn(column string, id int, data interface{}) error {
-	query := fmt.Sprintf("UPDATE %s SET %s = $1 WHERE id = $2", commandsTable, column)
-	_, err := p.db.Exec(query, data, id)
+	if *stderr == "" {
+		stderr = nil
+	}
+	query := fmt.Sprintf("UPDATE %s SET stdout = $1, stderr = $2, executed_at = $3 WHERE id = $4", commandsTable)
+	_, err := p.db.Exec(query, stdout, stderr, executedAt, id)
 	if err != nil {
 		return err
 	}
@@ -54,9 +52,11 @@ func (p *CommandPostgres) GetAllCommands() ([]models.Command, error) {
 
 func (p *CommandPostgres) GetOneCommand(id int) (models.Command, error) {
 	var command models.Command
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", commandsTable)
+	query := fmt.Sprintf("SELECT id, script, created_at, executed_at, stdout, stderr FROM %s WHERE id = $1",
+		commandsTable)
 	row := p.db.QueryRow(query, id)
-	if err := row.Scan(&command); err != nil {
+	if err := row.Scan(&command.Id, &command.Script, &command.CreatedAt, &command.ExecutedAT, &command.Stdout,
+		&command.Stderr); err != nil {
 		return models.Command{}, err
 	}
 	return command, nil

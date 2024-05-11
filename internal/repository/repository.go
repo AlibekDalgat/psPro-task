@@ -3,12 +3,12 @@ package repository
 import (
 	"github.com/jmoiron/sqlx"
 	"psPro-task/internal/models"
+	"time"
 )
 
 type Command interface {
 	CreateCommand(command models.Command) (int, error)
-	AddRecordToColumn(string, int, string) error
-	RewriteColumn(string, int, interface{}) error
+	WriteResults(int, *string, *string, time.Time) error
 	GetAllCommands() ([]models.Command, error)
 	GetOneCommand(int) (models.Command, error)
 }

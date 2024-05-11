@@ -43,11 +43,11 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	<-quit
 
-	logrus.Println("Сервер запуска завершил работу")
-	if err := srv.Shutdown(context.Background()); err != nil {
+	logrus.Println("Сервер запуска команд завершил работу")
+	if err = srv.Shutdown(context.Background()); err != nil {
 		logrus.Errorf("Произошла ошибка при завершении работы сервера: %s", err.Error())
 	}
-	if err := db.Close(); err != nil {
+	if err = db.Close(); err != nil {
 		logrus.Errorf("Ошибка при отсоединении от базы данных: %s", err.Error())
 	}
 }
