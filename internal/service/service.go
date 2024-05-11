@@ -11,7 +11,7 @@ type Command interface {
 	StopCommand(int) error
 	StartCommand(int) error
 	KillCommand(int) error
-	GetAllCommands() ([]models.Command, error)
+	GetAllCommands() ([]models.CommResult, error)
 	GetOneCommand(int) (models.Command, error)
 }
 

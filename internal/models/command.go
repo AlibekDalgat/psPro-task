@@ -1,7 +1,6 @@
 package models
 
 import (
-	"bytes"
 	"time"
 )
 
@@ -15,8 +14,12 @@ type Command struct {
 }
 
 type Job struct {
-	ActionChan   chan string
-	IsRun        bool
-	StdOutBuffer *bytes.Buffer
-	StdErrBuffer *bytes.Buffer
+	ActionChan chan string
+	IsRun      bool
+}
+
+type CommResult struct {
+	Id        int       `json:"id" db:"id"`
+	Script    string    `json:"script" db:"script"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
