@@ -167,7 +167,7 @@ func (s *CommandService) StopCommand(id int) error {
 func (s *CommandService) StartCommand(id int) error {
 	job, ok := (*s.currentJobs)[id]
 	if !ok {
-		return fmt.Errorf("Команды с id %v не найдено", id)
+		return fmt.Errorf("Команды с id %d не найдено", id)
 	}
 	if job.IsRun {
 		return fmt.Errorf("Команда %d уже запущена", id)
@@ -179,19 +179,25 @@ func (s *CommandService) StartCommand(id int) error {
 func (s *CommandService) KillCommand(id int) error {
 	job, ok := (*s.currentJobs)[id]
 	if !ok {
-		return fmt.Errorf("Команды с id %v не найдено", id)
+		return fmt.Errorf("Команды с id %d не найдено", id)
 	}
 	job.ActionChan <- "kill"
 	return nil
 }
 
 func (s *CommandService) GetAllCommands() ([]models.CommResult, error) {
-	return s.repo.GetAllCommands()
+	commands, err := s.repo.GetAllCommands()
+	if err != nil {
+		logrus.Errorf("Ошибка во время обращения к БД: %s", err.Error())
+		return nil, err
+	}
+	return commands, nil
 }
 
 func (s *CommandService) GetOneCommand(id int) (models.Command, error) {
 	command, err := s.repo.GetOneCommand(id)
 	if err != nil {
+		logrus.Errorf("Ошибка во время обращения к БД: %s", err.Error())
 		return models.Command{}, err
 	}
 	return command, nil

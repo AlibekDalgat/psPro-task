@@ -22,7 +22,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		api.GET("/comm", h.oneCommand)
 		api.PATCH("/stop/:id", h.stopCommand)
 		api.PATCH("/start/:id", h.startCommand)
-		api.DELETE("/kill/:id", h.killCommand)
+		api.PATCH("/kill/:id", h.killCommand)
 	}
 	return router
 }

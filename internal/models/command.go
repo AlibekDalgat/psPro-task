@@ -6,7 +6,7 @@ import (
 
 type Command struct {
 	Id         int        `json:"id" db:"id"`
-	Script     string     `json:"script" db:"script"`
+	Script     string     `json:"script" db:"script" binding:"required"`
 	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
 	ExecutedAT *time.Time `json:"executed_at" db:"executed_at"`
 	Stdout     *string    `json:"stdout" db:"stdout"`
