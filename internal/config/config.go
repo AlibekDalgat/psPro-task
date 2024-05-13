@@ -11,10 +11,6 @@ type DBConfig struct {
 	SSLMode  string
 }
 
-type ServerConfig struct {
-	HTTPPort string
-}
-
 func GetDBConfig() DBConfig {
 	return DBConfig{
 		User:     os.Getenv("PGUSER"),

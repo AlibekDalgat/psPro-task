@@ -140,7 +140,7 @@ func (s *CommandService) scanStdStream(stream string, scanner *bufio.Scanner, id
 			}
 		default:
 			if isScanFinished {
-				if len(line) > 0 {
+				if len(line) > 0 || buffer.Len() > 0 {
 					err := s.repo.WriteToColumn(stream, id, buffer.String())
 					if err != nil {
 						logrus.Printf("запись в %s команды %d не получилась: '%s'\n", stream, id, err.Error())
