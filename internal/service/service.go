@@ -5,6 +5,8 @@ import (
 	"psPro-task/internal/repository"
 )
 
+//go:generate mockgen -source=service.go -destination=mocks/mock.go
+
 type Command interface {
 	CreateCommand(command models.Command) (int, error)
 	ExecuteCommand(int, string)
