@@ -72,7 +72,7 @@ func (s *CommandService) ExecuteCommand(id int, script string) {
 	for {
 		select {
 		case <-done:
-			logrus.Printf("Команда %d завершена\n", id)
+			logrus.Printf("Команда %d завершена", id)
 			err = s.repo.WriteToColumn("executed_at", id, time.Now())
 			if err != nil {
 				logrus.Printf("Запись результатов выполнения команды %d не получилось: '%s'\n", id, err.Error())
